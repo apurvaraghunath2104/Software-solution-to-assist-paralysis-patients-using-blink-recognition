@@ -1,0 +1,418 @@
+package javaproject;
+import java.awt.image.BufferedImage;
+import java.io.*;
+
+import org.bytedeco.javacv.OpenCVFrameGrabber;
+import org.bytedeco.javacpp.opencv_core.IplImage;
+
+import com.sun.speech.freetts.VoiceManager;
+import com.sun.speech.freetts.Voice;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+
+public class demo
+{
+	static long startTime=System.currentTimeMillis();
+	private static final String VOICENAME_kevin="kevin";
+	private String text;
+	public demo() 
+	{
+		System.out.println("this is default constructor");
+	}
+	
+	public demo(String text)
+	{
+		this.text=text;	
+	}
+	
+	public void speak()
+	{
+		Voice vc;
+		VoiceManager vm=VoiceManager.getInstance();
+		vc=vm.getVoice(VOICENAME_kevin);
+		vc.allocate();
+		vc.speak(text);
+	}
+	
+	int w,h,n;
+  	BufferedImage y1,y2,y3,out,inp;
+  	static BufferedImage img1; 
+	int y,cr;	
+	int eye;
+	int countarr[]=new int[60];
+	int filterarr[]=new int[60];
+	OpenCVFrameGrabber gb=new OpenCVFrameGrabber(1);
+
+	  public void init() 
+	  {
+	  	try
+	  	{
+		  	gb.start();
+	  	}
+	  	catch(Exception e)
+	  	{
+	  		e.printStackTrace();
+	  	}
+	  }
+
+  	public void stop()
+  	{
+  		try
+	      	{
+		      	gb.stop();
+	      	}
+	      	catch(Exception e)
+	      	{
+	      		e.printStackTrace();
+	      	}	
+  	}
+
+  	
+	public void GrabImage()
+	{
+		try
+		{
+			IplImage img=gb.grab();
+			File f1=new File("file1.jpg");
+			ImageIO.write(img1=img.getBufferedImage(),"jpg",f1);
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public void Display(BufferedImage y1) throws IOException
+	{
+		try
+		{
+			File f2=new File("file2.jpg");
+			ImageIO.write(y1,"jpg",f2);
+			JFrame jf=new JFrame("BLINK RECOGNITION");
+			jf.setVisible(true);
+			ImageIcon ic=new ImageIcon(y1);
+			JLabel jl=new JLabel(ic);
+			jf.add(jl);
+			jf.pack();
+			jf.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+	}
+
+	public BufferedImage ColorConvert(BufferedImage img1)
+	{
+		int w=img1.getWidth();
+		int h=img1.getHeight();
+		y1=new BufferedImage(w,h,BufferedImage.TYPE_INT_RGB);
+		int rgb[][]=new int[w][h];	
+		int r[][]=new int[w][h];
+		int g[][]=new int[w][h];
+		int b[][]=new int[w][h];
+		try
+		{
+			for(int i=0;i<w;i++)
+			{
+				for(int j=0;j<h;j++)
+				{
+					rgb[i][j]=img1.getRGB(i,j);
+					r[i][j]=(rgb[i][j] & 0x00ff0000)>>16;
+					g[i][j]=(rgb[i][j] & 0x0000ff00)>>8;
+					b[i][j]=rgb[i][j] & 0x000000ff;
+				
+					//int cr=(int)(((0.5*r[i][j])-(0.419*g[i][j])-(0.081*b[i][j]))+128);
+				
+					int y=(int)((0.299*r[i][j])+(0.587*g[i][j])+(0.114*b[i][j]));
+	
+					//if(cr>100 & cr<115)
+	
+					if(y>2 & y<15)
+					    	y1.setRGB(i,j,0xffffff);//set white
+					else 
+						y1.setRGB(i,j,0);//set black
+				}
+			}	
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		return y1;	
+	}
+
+	public BufferedImage Segmentation(BufferedImage y1) throws IOException
+	{
+		int w=img1.getWidth();
+		int h=img1.getHeight();
+	
+		try
+		{
+			for(int i=0;i<w;i++)
+			{
+				for(int j=0;j<h;j++)
+				{
+						if(y1.getRGB(i,j)>144 & y1.getRGB(i,j)<170) 
+							y1.setRGB(i,j,0xffffff);
+						else 
+							y1.setRGB(i,j,0);
+				}
+			}
+	
+		}
+		catch(Exception e)
+		{
+			e.printStackTrace();
+		}
+		return y1;		
+	}
+
+	public static BufferedImage erode(BufferedImage inp, int ESIZE) 
+		{
+			
+			BufferedImage out;
+			ESIZE = (int)Math.floor(ESIZE/2);//structuring element size
+			out = new BufferedImage(inp.getWidth(), inp.getHeight(), BufferedImage.TYPE_BYTE_GRAY);// defining type of output image
+			for(int i = 0; i < inp.getWidth(); i++)
+				for(int j = 0; j < inp.getHeight(); j++)
+					out.setRGB(i,j, inp.getRGB(i,j));
+
+			for(int i = 0; i < inp.getWidth(); i++)
+			{
+				for(int j = 0; j < inp.getHeight(); j++)
+				{				
+					if((inp.getRGB(i,j) & 0x00ffffff) == 0x0)
+							out.setRGB(i,j, 0x0);
+					else
+						{
+							boolean flag = true;
+							for(int k = i-(ESIZE); k <= i+(ESIZE); k++)
+							{
+								for(int l = j-(ESIZE); l <= j+(ESIZE); l++)
+								{
+									if(k < inp.getWidth()-1 && l < inp.getHeight()-1 && k >=0 && l >= 0)
+										{
+											if((inp.getRGB(k,l) & 0x00ffffff) == 0)
+												{
+													flag = false;
+													break;
+												}
+										}
+								}
+							}
+							if(flag)
+								out.setRGB(i,j, 0xffffffff);
+							else
+								out.setRGB(i,j, 0x0);
+						}
+				}
+			}
+		
+		return out;
+	}
+	
+	public static BufferedImage dilate(BufferedImage inp, int ESIZE) 
+	{
+		BufferedImage out;
+		ESIZE = (int)Math.floor(ESIZE/2);
+		out = new BufferedImage(inp.getWidth(), inp.getHeight(), BufferedImage.TYPE_BYTE_GRAY);
+		
+		for(int i = 0; i < inp.getWidth(); i++)
+			for(int j = 0; j < inp.getHeight(); j++)
+				out.setRGB(i,j, inp.getRGB(i,j));
+		
+		for(int i = 0; i < inp.getWidth(); i++)
+		{
+			for(int j = 0; j < inp.getHeight(); j++)
+			{
+				if((inp.getRGB(i,j) & 0x00FFFFFF) == 0x00FFFFFF)
+					out.setRGB(i,j, 0xFFFFFFFF);
+				else
+					{
+						boolean flag = true;
+						for(int k = i-(ESIZE); k <= i+(ESIZE); k++)
+						{
+							for(int l = j-(ESIZE); l <= j+(ESIZE); l++)
+							{
+								if(k < inp.getWidth()-1 && l < inp.getHeight()-1 && k >= 0 && l >= 0)
+									{
+									if((inp.getRGB(k,l) & 0x00FFFFFF) == 0x00FFFFFF)
+										{
+											flag = false;
+											break;
+										}
+									}
+							}
+						}
+						if(flag)
+							out.setRGB(i,j, 0);
+						else
+							out.setRGB(i,j, 0xFFFFFFFF);
+					}
+			}
+		}
+		
+		return out;
+	}
+	
+	public int statusofeye(BufferedImage y1)
+	{
+		int i,j;
+		int count1=0,count2=0;
+
+		//To count the number of white pixels
+		for(i=0;i<=320;i++)
+			for(j=0;j<=160;j++)
+			{
+				if((y1.getRGB(i,j)&0x0000ff)==255) 
+					{
+						count1++;
+					}
+				else
+					{	
+				
+					}
+			}
+		
+		for(i=320;i<600;i++)
+			for(j=0;j<=160;j++)
+			{ 	
+				if((y1.getRGB(i,j)&0x0000ff)==255) 
+					{
+						count2++;
+					}
+				else
+					{
+				
+					}		
+			}
+		
+		System.out.print("count1="+count1);
+		System.out.print("  count2="+count2);
+		
+		//To check if the eyes are open or close	
+		if ((count1>3200)&(count2>3200))
+			{	
+				eye=2;
+			}
+
+		else if ((count1<3200)&(count2<3200))
+			{
+				eye=1;
+			
+			}
+		
+		else 
+			{
+		        
+			}
+		return eye;
+	}
+
+	public static void main(String[] args) throws Exception
+	{
+	  	demo p=new demo();
+	  	p.init();
+	  	try
+	  	{
+	  		int k=0,v=0;
+	  		p.countarr[k] = 0;
+	  		p.filterarr[v] = 0;
+	  		while(k<40)
+	  		{
+	  			p.GrabImage();
+	  			Thread.sleep(300);
+	  			p.ColorConvert(img1);
+	  			erode(p.y1,5);
+	  			dilate(p.y1,5);
+	  			p.Display(p.y1);
+	  			p.statusofeye(p.y1);
+	  			System.out.println("eye="+p.eye);
+	  			p.countarr[k]=p.eye;
+	  			System.out.println("countarr["+k+"]="+p.countarr[k]);
+	  			k++;
+	  		}
+
+	  		int u=2;
+	  		while(u<37)
+	  		{
+	  			
+	  			if((p.countarr[u]!=p.countarr[u+1])&&(p.countarr[u]==p.countarr[u-1])&&(p.countarr[u]==p.countarr[u-2]))
+	  				{
+	  					p.filterarr[v]=p.countarr[u];
+	  					System.out.println("filterarray["+v+"]="+p.filterarr[v]);
+	  					v++;
+	  				}
+	  			u++;
+	  		}
+	  		
+			if((p.filterarr[0]==2)&&(p.filterarr[1]==1)&&(p.filterarr[2]==2)&&(p.filterarr[3]==1))
+		  		{	
+		  			String text="my bed pan is full";
+		  			System.out.println("My bed pan is full");
+			  		demo ob1=new demo(text);
+			  		ob1.speak();
+		  		}
+
+			else if((p.filterarr[0]==1)&&(p.filterarr[1]==2)&&(p.filterarr[2]==1)&&(p.filterarr[3]==2))
+	  			{
+		  			String text="i want to lie down";
+		  			System.out.println("I want to lie down");
+		  			demo ob1=new demo(text);
+		  			ob1.speak();
+	  			}
+
+			else if((p.filterarr[0]==1)&&(p.filterarr[1]==2)&&(p.filterarr[2]==1))
+	  	  		{
+		  	  		String text="i want to sit";
+		  	  		System.out.println("I want to sit");
+		  	  		demo ob1=new demo(text);
+		  	  		ob1.speak();
+	  	  		}
+	  		
+			else if((p.filterarr[0]==2)&&(p.filterarr[1]==1)&&(p.filterarr[2]==2))
+				{
+					String text="my muscles are sore";
+					System.out.println("My muscles are sore");
+					demo ob1=new demo(text);
+					ob1.speak();
+				}
+	
+			else if((p.filterarr[0]==2)&&(p.filterarr[1]==1))
+				{
+					String text="Emergency Emergency Emergency Emergency Emergency Emergency";
+					System.out.println("Emergency");
+					demo ob1=new demo(text);
+					ob1.speak();
+				}
+	  		
+	  		else if((p.filterarr[0]==1)&&(p.filterarr[1]==2))
+				{
+					String text="i am thirsty";
+					System.out.println("I am thirsty");
+					demo ob1=new demo(text);
+					ob1.speak();
+				}
+
+	  		else
+			  	{
+				  	String text="try again";
+				  	System.out.println("Try again");
+				  	demo ob1=new demo(text);
+					ob1.speak();	
+				  }
+		}			
+
+	  	finally
+		  {
+		  	p.stop();
+		  }
+	  	long endTime=System.currentTimeMillis();
+	    
+	    long totalTime=endTime-startTime;
+	    System.out.println(totalTime);
+	  }   	    		
+  } 
+
